@@ -374,7 +374,7 @@ int get_timeval(struct tm* t1, struct tm* t2){
         (t2->tm_min - t1->tm_min);
 }
 
-int add_portproto(PortProto* ports, unsigned int* ports_len, unsigned int* ports_items, unsigned short port, char* proto){
+PortProto* add_portproto(PortProto* ports, unsigned int* ports_len, unsigned int* ports_items, unsigned short port, char* proto){
     unsigned int new_size;
     // Check is the space
     if(*ports_len <= *ports_items){
@@ -386,7 +386,7 @@ int add_portproto(PortProto* ports, unsigned int* ports_len, unsigned int* ports
     ports[*ports_items].proto = proto;
     *ports_items = *ports_items + 1;
 
-    return 0;
+    return ports;
 }
 
 int port_in_list(PortProto* ports, unsigned int ports_len, unsigned short port){
@@ -399,9 +399,9 @@ int port_in_list(PortProto* ports, unsigned int ports_len, unsigned short port){
 
 int check_ip(unsigned int ip){
     // Ports and protocols
-    unsigned int ports_len = 100;
+    unsigned int ports_len = 50;
     unsigned int ports_items = 0;
-    PortProto* ports = malloc(sizeof(PortProto)*ports_len);
+    PortProto* ports = malloc(sizeof(PortProto) * ports_len);
 
     struct tm* start_time;
     int timeval;
@@ -413,7 +413,7 @@ int check_ip(unsigned int ip){
         if(ip != g_record_table[i].src) continue;
         start_time = &g_record_table[i].time;
 
-        add_portproto(ports, &ports_len, &ports_items, g_record_table[i].port, g_record_table[i].proto);
+        ports = add_portproto(ports, &ports_len, &ports_items, g_record_table[i].port, g_record_table[i].proto);
 
         for(j = i+1; j < g_record_table_items; j++){
             if(ip != g_record_table[j].src) continue;
@@ -421,7 +421,7 @@ int check_ip(unsigned int ip){
             timeval = get_timeval(start_time, &g_record_table[j].time);
             if(timeval == 1 || timeval > g_interval) break;
             if(!port_in_list(ports, ports_items, g_record_table[j].port)){
-                add_portproto(ports, &ports_len, &ports_items, g_record_table[j].port, g_record_table[i].proto);
+                ports = add_portproto(ports, &ports_len, &ports_items, g_record_table[j].port, g_record_table[j].proto);
             }
         }
         if(ports_items >= g_cons){
@@ -431,10 +431,8 @@ int check_ip(unsigned int ip){
             }else{
                 printf("%s %s %i ports\n", timestr, g_ip_table[g_record_table[i].src], ports_items);
             }
-
             i = j-1;
         }
-
         // Reset
         ports_items = 0;
     }
@@ -469,13 +467,16 @@ int check_log(){
         fp = fopen(g_log_location, "r");
     }
 
-
     // Open file
-    if(fp == NULL){
+    if(fp == NULL && !g_read_stdin){
         fprintf(stderr, "error while opening file \"%s\"\n", g_log_location);
         perror("error");
         return 1;
+    }else if(fp == NULL){
+        fprintf(stderr, "error: stdin points to NULL\ncannot read user input\n");
+        return 1;
     }
+
     // Set up regex
     if(setup_regex(&date_regex, &payload_regex) != 0){
         return 1;
