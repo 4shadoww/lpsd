@@ -1,0 +1,4 @@
+*.log
+.gdb_history
+peda-session-lpsd.txt
+lpsd
