@@ -397,17 +397,81 @@ int port_in_list(PortProto* ports, unsigned int ports_len, unsigned short port){
     return 0;
 }
 
+char* create_port_list(char* buffer, unsigned int* len, unsigned int* chars, PortProto* ports, unsigned int ports_items){
+    char temp[PROTOSIZE + 5 + 4];
+    unsigned int temp_len;
+    unsigned int new_size;
+
+    for(unsigned int i = 0; i < ports_items; i++){
+        if(i+1 == ports_items){
+            sprintf(temp, "%s/%i", ports[i].proto, ports[i].port);
+            temp_len = strlen(temp);
+            if(*len - *chars < PROTOSIZE + 5 + 4){
+                new_size = *len + 100;
+                buffer = allocate_more_space(buffer, sizeof(char), *len, new_size);
+                *len = new_size;
+            }
+            memcpy(buffer+(*chars), temp, temp_len);
+            *chars = *chars + temp_len;
+        }else{
+            sprintf(temp, "%s/%i, ", ports[i].proto, ports[i].port);
+            temp_len = strlen(temp);
+            if(*len - *chars < PROTOSIZE + 5 + 4){
+                new_size = *len + 100;
+                buffer = allocate_more_space(buffer, sizeof(char), *len, new_size);
+                *len = new_size;
+            }
+            memcpy(buffer+(*chars), temp, temp_len);
+            *chars = *chars + temp_len;
+        }
+    }
+    if(*len <= *chars){
+        new_size = *len + 100;
+        buffer = allocate_more_space(buffer, sizeof(char), *len, new_size);
+        *len = new_size;
+    }
+    buffer[*chars] = '\0';
+    *chars = *chars + 1;
+
+    return buffer;
+}
+
+
+char* form_port_string(char* buffer, unsigned int* len, unsigned int* chars, PortProto* ports, unsigned int ports_items){
+    if(g_csv_format){
+        if(g_print_ports){
+            buffer = create_port_list(buffer, len, chars, ports, ports_items);
+        }else{
+            sprintf(buffer, "%i", ports_items);
+        }
+
+    }else{
+        if(g_print_ports){
+            buffer = create_port_list(buffer, len, chars, ports, ports_items);
+        }else{
+            sprintf(buffer, "%i ports", ports_items);
+        }
+    }
+
+    return buffer;
+}
+
 int check_ip(unsigned int ip){
     // Ports and protocols
     unsigned int ports_len = 50;
     unsigned int ports_items = 0;
     PortProto* ports = malloc(sizeof(PortProto) * ports_len);
 
+    // Port string
+    unsigned int port_str_len = 100;
+    unsigned int port_str_chars = 0;
+    char* port_buffer = malloc(port_str_len);
+
     struct tm* start_time;
     int timeval;
     unsigned int j;
 
-    char timestr[11];
+    char timestr[20];
 
     for(unsigned int i = 0; i < g_record_table_items; i++){
         if(ip != g_record_table[i].src) continue;
@@ -425,11 +489,17 @@ int check_ip(unsigned int ip){
             }
         }
         if(ports_items >= g_cons){
-            strftime(timestr, 11, "%Y-%m-%d", &g_record_table[i].time);
+            strftime(timestr, 20, "%Y-%m-%d %H:%M:%S", &g_record_table[i].time);
+            port_buffer = form_port_string(port_buffer, &port_str_len, &port_str_chars, ports, ports_items);
+
             if(g_csv_format){
-                printf("%s,%s,%i\n", timestr, g_ip_table[g_record_table[i].src], ports_items);
+                if(g_print_ports){
+                    printf("%s,%s,\"%s\"\n", timestr, g_ip_table[g_record_table[i].src], port_buffer);
+                }else{
+                    printf("%s,%s,%s\n", timestr, g_ip_table[g_record_table[i].src], port_buffer);
+                }
             }else{
-                printf("%s %s %i ports\n", timestr, g_ip_table[g_record_table[i].src], ports_items);
+                printf("%s %s %s\n", timestr, g_ip_table[g_record_table[i].src], port_buffer);
             }
             i = j-1;
         }
@@ -438,6 +508,7 @@ int check_ip(unsigned int ip){
     }
 
     free(ports);
+    free(port_buffer);
     return 0;
 }
 
