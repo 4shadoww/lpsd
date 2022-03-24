@@ -411,6 +411,7 @@ char* create_port_list(char* buffer, unsigned int* len, unsigned int* chars, Por
                 buffer = allocate_more_space(buffer, sizeof(char), *len, new_size);
                 *len = new_size;
             }
+            // Use memcpy insted of strncpy to silence annoying warnings
             memcpy(buffer+(*chars), temp, temp_len);
             *chars = *chars + temp_len;
         }else{
@@ -421,6 +422,7 @@ char* create_port_list(char* buffer, unsigned int* len, unsigned int* chars, Por
                 buffer = allocate_more_space(buffer, sizeof(char), *len, new_size);
                 *len = new_size;
             }
+            // Use memcpy insted of strncpy to silence annoying warnings
             memcpy(buffer+(*chars), temp, temp_len);
             *chars = *chars + temp_len;
         }
