@@ -1,0 +1,55 @@
+.TH LPSD 1 "2022-03-25" "1.0"
+.SH NAME
+lpsd – log-based port scan detector
+
+.SH SYNOPSIS
+.B lpsd
+[\fIoptions...\fR] \fB-i\fR \fIinput_file\fR
+.PP
+.B lpsd
+-i /var/log/kern.log
+
+.SH DESCRIPTION
+.B Log-based port scan detector
+for short
+.B lpsd
+is port scan detector which detects port scans by reading Syslog or standard input.
+It first parses the log and then tries to find port scans from the parsed data.
+LPSD works with nftables and iptables.
+
+.SH OPTIONS
+.TP
+\fB-h\fR, \fB--help\fR
+show help
+.TP
+\fB-v\fR, \fB--version\fR
+show version
+.TP
+\fB-i\fR, \fB--input-file\fR \fIlocation\fR
+log file location (syslog/kern.log) default: /var/log/kern.log
+.TP
+\fB-d\fR, \fB--date\fR \fIdate\fR
+check logs from this date (format %Y-%m-%d, year is ignored)
+.TP
+\fB-t\fR, \fB--time-interval\fR \fItime\fR
+time interval in minutes (must be 1-60) (default 5 mins)
+.TP
+\fB-s\fR, \fB--scans\fR \fIcount\fR
+count of opened connections to different ports (default 5)
+.TP
+\fB-p\fR, \fB--print-ports\fR
+.TP
+\fB-o\fR, \fB--out\fR \fIfile\fR
+output to file
+.TP
+\fB-si\fR, \fB--stdin\fR
+read from standard input (and not from file)
+.TP
+\fB-csv\fR, \fB--csv-format\fR
+output in csv format
+
+.SH AUTHOR
+Noa-Emil Nissinen
+
+.SH BUGS
+https://gitlab.com/4shadoww/lpsd

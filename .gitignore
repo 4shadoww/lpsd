@@ -2,3 +2,4 @@
 .gdb_history
 peda-session-lpsd.txt
 lpsd
+man/lpsd.1.gz

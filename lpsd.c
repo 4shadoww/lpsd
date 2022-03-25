@@ -54,8 +54,7 @@ char g_version_string[] = "lpsd 1.0";
 
 // Global variables
 const char* g_program_name;
-const char g_default_log_location[] = "/var/log/kern.log";
-const char* g_log_location = g_default_log_location;
+const char* g_log_location = NULL;
 struct tm g_date;
 int g_date_type = -1;
 int g_interval = 5;
@@ -134,7 +133,7 @@ int print_help(const char* value){
         "  -si,  --stdin\t\t\tread from standard input (and not from file)\n"
         "  -csv, --csv-format\t\toutput in csv format";
 
-    printf("usage: %s [OPTIONS...]\n%s\n", g_program_name, options);
+    printf("usage: %s [OPTIONS...] -i <log_file> \n%s\n", g_program_name, options);
     return -1;
 }
 
@@ -658,6 +657,12 @@ int main(int argc, char** argv){
         }else if(success != 0){
             return 1;
         }
+    }
+
+    if(g_log_location == NULL){
+        fprintf(stderr, "error: please define the log file location\n");
+        print_help(NULL);
+        return 1;
     }
 
     g_t = time(NULL);
