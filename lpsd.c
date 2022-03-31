@@ -49,6 +49,38 @@ typedef struct{
     struct tm time;
 }Record;
 
+typedef struct{
+    unsigned short port;
+    char* proto;
+}PortProto;
+
+typedef struct{
+    PortProto* table;
+    unsigned int items;
+    unsigned int len;
+
+}ConnTable;
+
+typedef struct{
+    char* buffer;
+    unsigned int chars;
+    unsigned int len;
+}PortStr;
+
+struct{
+    IP* table;
+    unsigned int items;
+    unsigned int len;
+} g_ip_table;
+
+
+struct{
+    Record* table;
+    unsigned int items;
+    unsigned int len;
+
+} g_record_table;
+
 // Version
 char g_version_string[] = "lpsd 1.0";
 
@@ -63,19 +95,6 @@ int g_print_ports = 0;
 const char* g_out = NULL;
 int g_read_stdin = 0;
 int g_csv_format = 0;
-
-// Variables to store parsed data
-IP* g_ip_table;
-unsigned int g_ip_table_len = 0;
-unsigned int g_ip_table_items = 0;
-Record* g_record_table;
-unsigned int g_record_table_len = 0;
-unsigned int g_record_table_items = 0;
-
-typedef struct{
-    unsigned short port;
-    char* proto;
-}PortProto;
 
 time_t g_t;
 struct tm g_time_now;
@@ -228,25 +247,30 @@ int get_substring(char* dest, unsigned int dest_len, const char* src, unsigned i
 }
 
 int initialise_tables(unsigned int ip_table_size, unsigned int record_table_size){
-    g_ip_table = malloc(sizeof(IP)*ip_table_size);
-    if(g_ip_table == NULL){
+    g_ip_table.len = ip_table_size;
+    g_ip_table.items = 0;
+    g_ip_table.table = malloc(sizeof(IP)*ip_table_size);
+    if(g_ip_table.table == NULL){
         fprintf(stderr, "error: failed to allocate memory for ip table\n");
         return 1;
     }
-    g_record_table = malloc(sizeof(Record)*record_table_size);
-    if(g_record_table == NULL){
+
+    g_record_table.len = record_table_size;
+    g_record_table.items = 0;
+    g_record_table.table = malloc(sizeof(Record)*record_table_size);
+    if(g_record_table.table == NULL){
         fprintf(stderr, "error: failed to allocate memory for record table\n");
     }
 
-    g_ip_table_len = ip_table_size;
-    g_record_table_len = record_table_size;
+    g_ip_table.len = ip_table_size;
+    g_record_table.len = record_table_size;
 
     return 0;
 }
 
 int deallocate_tables(){
-    free(g_ip_table);
-    free(g_record_table);
+    free(g_ip_table.table);
+    free(g_record_table.table);
     return 0;
 }
 
@@ -333,8 +357,8 @@ int add_iprecord(const IP* ip, const Record* record){
     unsigned int new_size;
 
     // Check does ip exist already in table
-    for(unsigned int i = 0; i < g_ip_table_items; i++){
-        if(strcmp((const char*)ip, g_ip_table[i]) == 0){
+    for(unsigned int i = 0; i < g_ip_table.items; i++){
+        if(strcmp((const char*)ip, g_ip_table.table[i]) == 0){
             ip_in_table = i;
             break;
         }
@@ -342,26 +366,26 @@ int add_iprecord(const IP* ip, const Record* record){
     // Add if not already in table
     if(ip_in_table == -1){
         // Check is there enought space
-        if(g_ip_table_len <= g_ip_table_items){
-            new_size = g_ip_table_len + 50;
-            g_ip_table = allocate_more_space(g_ip_table, sizeof(IP), g_ip_table_len, new_size);
-            g_ip_table_len = new_size;
+        if(g_ip_table.len <= g_ip_table.items){
+            new_size = g_ip_table.len + 50;
+            g_ip_table.table = allocate_more_space(g_ip_table.table, sizeof(IP), g_ip_table.len, new_size);
+            g_ip_table.len = new_size;
         }
-        strcpy(g_ip_table[g_ip_table_items], (const char*)ip);
-        ip_in_table = g_ip_table_items;
-        g_ip_table_items++;
+        strcpy(g_ip_table.table[g_ip_table.items], (const char*)ip);
+        ip_in_table = g_ip_table.items;
+        g_ip_table.items++;
     }
 
     // Check is there enought space for record
-    if(g_record_table_len <= g_record_table_items){
-        new_size = g_record_table_len + 200;
-        g_record_table = allocate_more_space(g_record_table, sizeof(Record), g_record_table_len, new_size);
-        g_record_table_len = new_size;
+    if(g_record_table.len <= g_record_table.items){
+        new_size = g_record_table.len + 200;
+        g_record_table.table = allocate_more_space(g_record_table.table, sizeof(Record), g_record_table.len, new_size);
+        g_record_table.len = new_size;
     }
 
-    g_record_table[g_record_table_items] = *record;
-    g_record_table[g_record_table_items].src = ip_in_table;
-    g_record_table_items++;
+    g_record_table.table[g_record_table.items] = *record;
+    g_record_table.table[g_record_table.items].src = ip_in_table;
+    g_record_table.items++;
 
     return 0;
 }
@@ -373,143 +397,125 @@ int get_timeval(struct tm* t1, struct tm* t2){
         (t2->tm_min - t1->tm_min);
 }
 
-PortProto* add_portproto(PortProto* ports, unsigned int* ports_len, unsigned int* ports_items, unsigned short port, char* proto){
+void add_portproto(ConnTable* conn_table, unsigned short port, char* proto){
     unsigned int new_size;
     // Check is the space
-    if(*ports_len <= *ports_items){
-        new_size = *ports_len + 20;
-        ports = allocate_more_space(ports, sizeof(PortProto), *ports_len, new_size);
-        *ports_len = new_size;
+    if(conn_table->len <= conn_table->items){
+        new_size = conn_table->len + 20;
+        conn_table->table = allocate_more_space(conn_table->table, sizeof(PortProto), conn_table->len, new_size);
+        conn_table->len = new_size;
     }
-    ports[*ports_items].port = port;
-    ports[*ports_items].proto = proto;
-    *ports_items = *ports_items + 1;
-
-    return ports;
+    conn_table->table[conn_table->items].port = port;
+    conn_table->table[conn_table->items].proto = proto;
+    conn_table->items++;
 }
 
-int port_in_list(PortProto* ports, unsigned int ports_len, unsigned short port){
-    for(unsigned int i = 0; i < ports_len; i++){
-        if(ports[i].port == port) return 1;
+int port_in_list(ConnTable* conn_table, unsigned short port){
+    for(unsigned int i = 0; i < conn_table->items; i++){
+        if(conn_table->table[i].port == port) return 1;
     }
 
     return 0;
 }
 
-char* create_port_list(char* buffer, unsigned int* len, unsigned int* chars, PortProto* ports, unsigned int ports_items){
+void create_port_list(PortStr* port_str, ConnTable* conn_table){
     char temp[PROTOSIZE + 5 + 4];
     unsigned int temp_len;
     unsigned int new_size;
 
-    for(unsigned int i = 0; i < ports_items; i++){
-        if(i+1 == ports_items){
-            sprintf(temp, "%s/%i", ports[i].proto, ports[i].port);
+    for(unsigned int i = 0; i < conn_table->items; i++){
+        if(i+1 == conn_table->items){
+            sprintf(temp, "%s/%i", conn_table->table[i].proto, conn_table->table[i].port);
             temp_len = strlen(temp);
-            if(*len - *chars < PROTOSIZE + 5 + 4){
-                new_size = *len + 100;
-                buffer = allocate_more_space(buffer, sizeof(char), *len, new_size);
-                *len = new_size;
+            if(port_str->len - port_str->chars < PROTOSIZE + 5 + 4){
+                new_size = port_str->len + 100;
+                port_str->buffer = allocate_more_space(port_str->buffer, sizeof(char), port_str->len, new_size);
+                port_str->len = new_size;
             }
             // Use memcpy insted of strncpy to silence annoying warnings
-            memcpy(buffer+(*chars), temp, temp_len);
-            *chars = *chars + temp_len;
+            memcpy(port_str->buffer+(port_str->chars), temp, temp_len);
+            port_str->chars = port_str->chars + temp_len;
         }else{
-            sprintf(temp, "%s/%i, ", ports[i].proto, ports[i].port);
+            sprintf(temp, "%s/%i, ", conn_table->table[i].proto, conn_table->table[i].port);
             temp_len = strlen(temp);
-            if(*len - *chars < PROTOSIZE + 5 + 4){
-                new_size = *len + 100;
-                buffer = allocate_more_space(buffer, sizeof(char), *len, new_size);
-                *len = new_size;
+            if(port_str->len - port_str->chars < PROTOSIZE + 5 + 4){
+                new_size = port_str->len + 100;
+                port_str->buffer = allocate_more_space(port_str->buffer, sizeof(char), port_str->len, new_size);
+                port_str->len = new_size;
             }
             // Use memcpy insted of strncpy to silence annoying warnings
-            memcpy(buffer+(*chars), temp, temp_len);
-            *chars = *chars + temp_len;
+            memcpy(port_str->buffer+(port_str->chars), temp, temp_len);
+            port_str->chars = port_str->chars + temp_len;
         }
     }
-    if(*len <= *chars){
-        new_size = *len + 100;
-        buffer = allocate_more_space(buffer, sizeof(char), *len, new_size);
-        *len = new_size;
+    if(port_str->len <= port_str->chars){
+        new_size = port_str->len + 100;
+        port_str->buffer = allocate_more_space(port_str->buffer, sizeof(char), port_str->len, new_size);
+        port_str->len = new_size;
     }
-    buffer[*chars] = '\0';
-    *chars = *chars + 1;
-
-    return buffer;
+    port_str->buffer[port_str->chars] = '\0';
+    port_str->chars++;
 }
 
 
-char* form_port_string(char* buffer, unsigned int* len, unsigned int* chars, PortProto* ports, unsigned int ports_items){
+void form_port_string(PortStr* port_str, ConnTable* conn_table){
     if(g_csv_format){
         if(g_print_ports){
-            buffer = create_port_list(buffer, len, chars, ports, ports_items);
+            create_port_list(port_str, conn_table);
         }else{
-            sprintf(buffer, "%i", ports_items);
+            sprintf(port_str->buffer, "%i", conn_table->items);
         }
 
     }else{
         if(g_print_ports){
-            buffer = create_port_list(buffer, len, chars, ports, ports_items);
+            create_port_list(port_str, conn_table);
         }else{
-            sprintf(buffer, "%i ports", ports_items);
+            sprintf(port_str->buffer, "%i ports", conn_table->items);
         }
     }
-
-    return buffer;
 }
 
-int check_ip(unsigned int ip){
-    // Ports and protocols
-    unsigned int ports_len = 50;
-    unsigned int ports_items = 0;
-    PortProto* ports = malloc(sizeof(PortProto) * ports_len);
-
-    // Port string
-    unsigned int port_str_len = 100;
-    unsigned int port_str_chars = 0;
-    char* port_buffer = malloc(port_str_len);
-
+int check_ip(unsigned int ip, ConnTable* conn_table, PortStr* port_str){
     struct tm* start_time;
     int timeval;
     unsigned int j;
 
     char timestr[20];
 
-    for(unsigned int i = 0; i < g_record_table_items; i++){
-        if(ip != g_record_table[i].src) continue;
-        start_time = &g_record_table[i].time;
+    for(unsigned int i = 0; i < g_record_table.items; i++){
+        if(ip != g_record_table.table[i].src) continue;
+        start_time = &g_record_table.table[i].time;
 
-        ports = add_portproto(ports, &ports_len, &ports_items, g_record_table[i].port, g_record_table[i].proto);
+        add_portproto(conn_table, g_record_table.table[i].port, g_record_table.table[i].proto);
 
-        for(j = i+1; j < g_record_table_items; j++){
-            if(ip != g_record_table[j].src) continue;
+        for(j = i+1; j < g_record_table.items; j++){
+            if(ip != g_record_table.table[j].src) continue;
             // Check is timeval too great
-            timeval = get_timeval(start_time, &g_record_table[j].time);
+            timeval = get_timeval(start_time, &g_record_table.table[j].time);
             if(timeval == 1 || timeval > g_interval) break;
-            if(!port_in_list(ports, ports_items, g_record_table[j].port)){
-                ports = add_portproto(ports, &ports_len, &ports_items, g_record_table[j].port, g_record_table[j].proto);
+            if(!port_in_list(conn_table, g_record_table.table[j].port)){
+                add_portproto(conn_table, g_record_table.table[j].port, g_record_table.table[j].proto);
             }
         }
-        if(ports_items >= g_cons){
-            strftime(timestr, 20, "%Y-%m-%d %H:%M:%S", &g_record_table[i].time);
-            port_buffer = form_port_string(port_buffer, &port_str_len, &port_str_chars, ports, ports_items);
+        if(conn_table->items >= g_cons){
+            strftime(timestr, 20, "%Y-%m-%d %H:%M:%S", &g_record_table.table[i].time);
+            form_port_string(port_str, conn_table);
 
             if(g_csv_format){
                 if(g_print_ports){
-                    printf("%s,%s,\"%s\"\n", timestr, g_ip_table[g_record_table[i].src], port_buffer);
+                    printf("%s,%s,\"%s\"\n", timestr, g_ip_table.table[g_record_table.table[i].src], port_str->buffer);
                 }else{
-                    printf("%s,%s,%s\n", timestr, g_ip_table[g_record_table[i].src], port_buffer);
+                    printf("%s,%s,%s\n", timestr, g_ip_table.table[g_record_table.table[i].src], port_str->buffer);
                 }
             }else{
-                printf("%s %s %s\n", timestr, g_ip_table[g_record_table[i].src], port_buffer);
+                printf("%s %s %s\n", timestr, g_ip_table.table[g_record_table.table[i].src], port_str->buffer);
             }
             i = j-1;
         }
         // Reset
-        ports_items = 0;
+        conn_table->items = 0;
     }
 
-    free(ports);
-    free(port_buffer);
     return 0;
 }
 
@@ -532,6 +538,10 @@ int check_log(){
     struct tm temp_time;
     IP temp_ip;
     Record temp_record;
+
+    // Check variables
+    ConnTable conn_table;
+    PortStr port_str;
 
     if(g_read_stdin){
         fp = stdin;
@@ -596,21 +606,35 @@ int check_log(){
         add_iprecord(&temp_ip, &temp_record);
     }
 
+    fclose(fp);
+    free(buffer);
+    regfree(&date_regex);
+    regfree(&payload_regex);
+
     // Csv header
     if(g_csv_format){
         printf("scan_time,address,ports\n");
     }
 
+    // Initialise connection table and port_str
+    conn_table.len = 50;
+    conn_table.items = 0;
+    conn_table.table = malloc(sizeof(PortProto) * conn_table.len);
+
+    port_str.len = 100;
+    port_str.chars = 0;
+    port_str.buffer = malloc(sizeof(char) * port_str.len);
+
     // TODO add threads
     // Find port scans
-    for(unsigned int i = 0; i < g_ip_table_items; i++){
-        check_ip(i);
+
+    for(unsigned int i = 0; i < g_ip_table.items; i++){
+        check_ip(i, &conn_table, &port_str);
     }
 
-    fclose(fp);
-    free(buffer);
-    regfree(&date_regex);
-    regfree(&payload_regex);
+    free(conn_table.table);
+    free(port_str.buffer);
+
     deallocate_tables();
 
     return 0;
