@@ -630,6 +630,8 @@ int check_log(){
 
     for(unsigned int i = 0; i < g_ip_table.items; i++){
         check_ip(i, &conn_table, &port_str);
+        conn_table.items = 0;
+        port_str.chars = 0;
     }
 
     free(conn_table.table);
