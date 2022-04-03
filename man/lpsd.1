@@ -1,4 +1,4 @@
-.TH LPSD 1 "2022-03-25" "1.0"
+.TH LPSD 1 "2022-04-04" "pre-1.0"
 .SH NAME
 lpsd – log-based port scan detector
 
@@ -8,6 +8,9 @@ lpsd – log-based port scan detector
 .PP
 .B lpsd
 -i /var/log/kern.log
+.PP
+.B lpsd
+-i /var/log/kern.log.1,/var/log/kern.log
 
 .SH DESCRIPTION
 .B Log-based port scan detector
@@ -25,8 +28,16 @@ show help
 \fB-v\fR, \fB--version\fR
 show version
 .TP
-\fB-i\fR, \fB--input-file\fR \fIlocation\fR
-log file location (syslog/kern.log) default: /var/log/kern.log
+\fB-i\fR, \fB--input-file\fR \fIfile(s)\fR
+Log file(s). Delimiter: comma (,).
+.PP
+.RS
+Example: "syslog/kern.log" or multiple files "/var/log/kern.log.1,/var/log/kern.log".
+.RE
+.PP
+.RS
+Files \fBMUST\fR be in ascending order (from the oldest to the latest).
+.RE
 .TP
 \fB-d\fR, \fB--date\fR \fIdate\fR
 check logs from this date (format %Y-%m-%d, year is ignored)

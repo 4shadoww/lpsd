@@ -60,6 +60,11 @@ Uninstall with the "uninstall" target:
     
     $ make uninstall
 
+This release
+------------
+
+This is a pre-release of the program and not a full version. 1.0 tag will be added when I consider the program is tested enough and the planned features are implemented. 
+
 Bugs
 ----
 

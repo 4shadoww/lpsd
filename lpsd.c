@@ -20,6 +20,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include<unistd.h>
 #include <regex.h>
 #include <time.h>
 #include <limits.h>
@@ -86,7 +87,8 @@ char g_version_string[] = "lpsd pre-1.0";
 
 // Global variables
 const char* g_program_name;
-const char* g_log_location = NULL;
+unsigned int g_log_count = 1;
+const char** g_log_location;
 struct tm g_date;
 int g_date_type = -1;
 int g_interval = 5;
@@ -111,8 +113,36 @@ unsigned int char_count(const char* str, const char c){
     return result;
 }
 
+void copy_file_names(const char* str){
+    const char delimiter = ',';
+    unsigned int i = 0;
+    unsigned int begin = 0;
+    unsigned int str_len;
+    unsigned int str_num = 0;
+    char* temp;
+
+    while(str[i] != '\0'){
+        if(str[i] == delimiter){
+            str_len = i - begin + 1;
+            temp = malloc(sizeof(char)*str_len);
+            strncpy(temp, str+begin, str_len);
+            temp[str_len-1] = '\0';
+            g_log_location[str_num] = temp;
+            str_num++;
+            begin = i + 1;
+        }
+        i++;
+    }
+    // Copy the remaining
+    str_len = i - begin + 1;
+    temp = malloc(sizeof(char)*str_len);
+    strncpy(temp, str+begin, str_len);
+    temp[str_len-1] = '\0';
+    g_log_location[str_num] = temp;
+}
+
 const char* parse_time(const char* input, const char* format, struct tm* tm){
-    memset (tm, '\0', sizeof(*tm));
+    memset(tm, '\0', sizeof(*tm));
     return strptime(input, format, tm);
 }
 
@@ -143,7 +173,7 @@ int print_help(const char* value){
         "\nOptions:\n"
         "  -h,   --help\t\t\tprint help\n"
         "  -v,   --version\t\tprint version\n"
-        "  -i,   --input-file <location>\tlog file location (kern.log)\n"
+        "  -i,   --input-file <file(s)>\tlog file(s) (kern.log) delimiter: comma (,)\n\t\t\t\tfiles must be given in ascending order (see the man page)\n"
         "  -d,   --date <date>\t\tcheck logs from this date (format %Y-%m-%d, year is ignored)\n"
         "  -t,   --time-interval <time>\ttime interval in minutes (must be 1-60) (default 5 mins)\n"
         "  -s,   --scans <count>\t\tcount of opened connections to different ports (default 5)\n"
@@ -162,7 +192,15 @@ int print_version(const char* value){
 }
 
 int arg_log_location(const char* value){
-    g_log_location = value;
+    unsigned int file_count = char_count(value, ',') + 1;
+    if(file_count == 1){
+        g_log_location[0] = value;
+        return 0;
+    }
+    g_log_count = file_count;
+    g_log_location = malloc(sizeof(char*)*file_count);
+    copy_file_names(value);
+
     return 0;
 }
 
@@ -519,17 +557,14 @@ int check_ip(unsigned int ip, ConnTable* conn_table, PortStr* port_str){
     return 0;
 }
 
-int check_log(){
-    // File stream variables
-    FILE* fp;
+int parse_log(FILE* fp, regex_t* date_regex, regex_t* payload_regex){
+     // File stream variables
     char* buffer = NULL;
     size_t len = 0;
     unsigned int line_num = 0;
 
     // Regex variables
     int status;
-    regex_t date_regex;
-    regex_t payload_regex;
     regmatch_t regex_match[4];
     char match_buffer[IPSIZE];
     const char* time_status;
@@ -539,40 +574,12 @@ int check_log(){
     IP temp_ip;
     Record temp_record;
 
-    // Check variables
-    ConnTable conn_table;
-    PortStr port_str;
-
-    if(g_read_stdin){
-        fp = stdin;
-    }else{
-        fp = fopen(g_log_location, "r");
-    }
-
-    // Open file
-    if(fp == NULL && !g_read_stdin){
-        fprintf(stderr, "error while opening file \"%s\"\n", g_log_location);
-        perror("error");
-        return 1;
-    }else if(fp == NULL){
-        fprintf(stderr, "error: stdin points to NULL\ncannot read user input\n");
-        return 1;
-    }
-
-    // Set up regex
-    if(setup_regex(&date_regex, &payload_regex) != 0){
-        return 1;
-    }
-    if(initialise_tables(2000, 5000) != 0){
-        return 1;
-    }
-
     // Parse lines
     while(getline(&buffer, &len, fp) != -1){
         line_num++;
 
         // Date regex
-        status = regexec(&date_regex, buffer, 1, regex_match, 0);
+        status = regexec(date_regex, buffer, 1, regex_match, 0);
         if(status == REG_NOMATCH) continue;
 
         // Copy results
@@ -591,7 +598,7 @@ int check_log(){
         if(g_date_type != -1 && date_equal(&temp_time) != 1) continue;
 
         // Payload regex
-        status = regexec(&payload_regex, buffer, 4, regex_match, 0);
+        status = regexec(payload_regex, buffer, 4, regex_match, 0);
         if(status == REG_NOMATCH) continue;
 
         // Parse payload
@@ -606,10 +613,57 @@ int check_log(){
         add_iprecord(&temp_ip, &temp_record);
     }
 
-    fclose(fp);
     free(buffer);
+
+    return 0;
+}
+
+int check_log(){
+    FILE* fp = NULL;
+    regex_t date_regex;
+    regex_t payload_regex;
+
+    // Set up regex
+    if(setup_regex(&date_regex, &payload_regex) != 0){
+        return 1;
+    }
+    if(initialise_tables(2000, 5000) != 0){
+        return 1;
+    }
+
+    if(g_read_stdin){
+        fp = stdin;
+        if(parse_log(fp, &date_regex, &payload_regex) != 0){
+            return 1;
+        }
+    }else{
+        for(unsigned int i = 0; i < g_log_count; i++){
+            fp = fopen(g_log_location[i], "r");
+
+            // Open file
+            if(fp == NULL && !g_read_stdin){
+                fprintf(stderr, "error while opening file \"%s\"\n", g_log_location[i]);
+                perror("error");
+                return 1;
+            }else if(fp == NULL){
+                fprintf(stderr, "error: stdin points to NULL\ncannot read user input\n");
+                return 1;
+            }
+
+            if(parse_log(fp, &date_regex, &payload_regex) != 0){
+                return 1;
+            }
+        }
+    }
+
     regfree(&date_regex);
     regfree(&payload_regex);
+    fclose(fp);
+
+    // Check variables
+    ConnTable conn_table;
+    PortStr port_str;
+
 
     // Csv header
     if(g_csv_format){
@@ -625,7 +679,7 @@ int check_log(){
     port_str.chars = 0;
     port_str.buffer = malloc(sizeof(char) * port_str.len);
 
-    // TODO add threads
+    // TODO add threads?
     // Find port scans
 
     for(unsigned int i = 0; i < g_ip_table.items; i++){
@@ -642,10 +696,30 @@ int check_log(){
     return 0;
 }
 
+int files_accessible(){
+    if(g_read_stdin) return 1;
+
+    for(unsigned int i = 0; i < g_log_count; i++){
+        if(access(g_log_location[i], R_OK) != 0){
+            fprintf(stderr, "error: cannot access file \"%s\"\n", g_log_location[i]);
+            return 0;
+        }
+    }
+    return 1;
+}
+
 int main(int argc, char** argv){
     FILE* fp = NULL;
 
+    // Initialise
     g_program_name = argv[0];
+    // Use stack by default
+    // If there is more than one file new memory is allocated to heap
+    // It's not freed because there is no point in that
+    // This will however show up as an error in valgrind
+    const char* default_pointer[1] = { NULL };
+    g_log_location = default_pointer;
+    g_log_location[0] = NULL;
 
     // Parse arguments
     for(int i = 1; i < argc; i++){
@@ -685,9 +759,13 @@ int main(int argc, char** argv){
         }
     }
 
-    if(g_log_location == NULL){
+    if(g_log_location[0] == NULL){
         fprintf(stderr, "error: please define the log file location\n");
         print_help(NULL);
+        return 1;
+    }
+
+    if(!files_accessible()){
         return 1;
     }
 
