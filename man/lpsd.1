@@ -38,6 +38,10 @@ Example: "syslog/kern.log" or multiple files "/var/log/kern.log.1,/var/log/kern.
 .RS
 Files \fBMUST\fR be in ascending order (from the oldest to the latest).
 .RE
+.PP
+.RS
+Note that also log entries must be in ascending order (as it is by default).
+.RE
 .TP
 \fB-d\fR, \fB--date\fR \fIdate\fR
 check logs from this date (format %Y-%m-%d, year is ignored)

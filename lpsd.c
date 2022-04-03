@@ -173,13 +173,13 @@ int print_help(const char* value){
         "\nOptions:\n"
         "  -h,   --help\t\t\tprint help\n"
         "  -v,   --version\t\tprint version\n"
-        "  -i,   --input-file <file(s)>\tlog file(s) (kern.log) delimiter: comma (,)\n\t\t\t\tfiles must be given in ascending order (see the man page)\n"
+        "  -i,   --input-file <file(s)>\tlog file(s) (kern.log) delimiter: comma (,)\n\t\t\t\tfiles must be given in ascending order (also the log entries) (see the man page)\n"
         "  -d,   --date <date>\t\tcheck logs from this date (format %Y-%m-%d, year is ignored)\n"
         "  -t,   --time-interval <time>\ttime interval in minutes (must be 1-60) (default 5 mins)\n"
         "  -s,   --scans <count>\t\tcount of opened connections to different ports (default 5)\n"
         "  -p,   --print-ports\t\tprint all ports\n"
         "  -o,   --out <file>\t\toutput to file\n"
-        "  -si,  --stdin\t\t\tread from standard input (and not from file)\n"
+        "  -si,  --stdin\t\t\tread from standard input (must be ascending)\n"
         "  -csv, --csv-format\t\toutput in csv format";
 
     printf("usage: %s [OPTIONS...] -i <log_file> \n%s\n", g_program_name, options);
