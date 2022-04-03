@@ -41,6 +41,8 @@ Example of log entry which LPSD can parse:
 
     Mar 22 23:51:32 debian kernel: [292481.303983] IN=eth0 OUT= MAC=xx:xx:xx:xx:xx:xx:xx:xx:xx:xx:xx:xx:xx:xx SRC=105.28.xxx.xxx DST=10.12.93.2 LEN=44 TOS=0x00 PREC=0x00 TTL=7 ID=35 DF PROTO=ICMP TYPE=8 CODE=0 ID=41542 SEQ=34
 
+Note that log entries must be in ascending order (as it is by default).
+
 Building
 --------
 
