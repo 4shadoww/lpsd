@@ -530,8 +530,9 @@ int check_ip(unsigned int ip, ConnTable* conn_table, PortStr* port_str){
             if(ip != g_record_table.table[j].src) continue;
             // Check is timeval too great
             timeval = get_timeval(start_time, &g_record_table.table[j].time);
-            if(timeval == 1 || timeval > g_interval) break;
+            if(timeval == -1 || timeval > g_interval) break;
             if(!port_in_list(conn_table, g_record_table.table[j].port)){
+                start_time = &g_record_table.table[j].time;
                 add_portproto(conn_table, g_record_table.table[j].port, g_record_table.table[j].proto);
             }
         }
@@ -548,8 +549,8 @@ int check_ip(unsigned int ip, ConnTable* conn_table, PortStr* port_str){
             }else{
                 printf("%s %s %s\n", timestr, g_ip_table.table[g_record_table.table[i].src], port_str->buffer);
             }
-            i = j-1;
         }
+        i = j-1;
         // Reset
         conn_table->items = 0;
     }
