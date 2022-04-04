@@ -315,7 +315,7 @@ int deallocate_tables(){
 int setup_regex(regex_t* date_regex, regex_t* payload_regex){
     int status;
 
-    status = regcomp(date_regex, "([a-z]{3} +?[0-9]{1,2} +?[0-9]{1,2}:[0-9]{1,2}:[0-9]{1,2})", REG_EXTENDED | REG_ICASE);
+    status = regcomp(date_regex, "([a-z]+ +?[0-9]{1,2} +?[0-9]{1,2}:[0-9]{1,2}:[0-9]{1,2})", REG_EXTENDED | REG_ICASE);
     if(status != 0){
         fprintf(stderr, "failed to compile regex (%i)\n", status);
         return 1;
