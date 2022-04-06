@@ -429,9 +429,8 @@ int add_iprecord(const IP* ip, const Record* record){
 }
 
 int get_timeval(struct tm* t1, struct tm* t2){
-    // Cannot compute
-    if(t1->tm_mon != t2->tm_mon) return -1;
-    return ((t2->tm_mday - t1->tm_mday) * 1440) + ((t2->tm_hour - t1->tm_hour) * 60) + \
+    return ((t2->tm_year - t1->tm_year) * 525949) + ((t2->tm_mon - t1->tm_mon) * 43829) + \
+        ((t2->tm_mday - t1->tm_mday) * 1440) + ((t2->tm_hour - t1->tm_hour) * 60) + \
         (t2->tm_min - t1->tm_min);
 }
 
