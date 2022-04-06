@@ -24,6 +24,7 @@
 #include <regex.h>
 #include <time.h>
 #include <limits.h>
+#include <ctype.h>
 
 // Extern arg functions
 extern int print_help(const char*);
@@ -67,6 +68,25 @@ typedef struct{
     unsigned int chars;
     unsigned int len;
 }PortStr;
+
+typedef struct{
+    unsigned int start;
+    unsigned int end;
+} SubStr;
+
+typedef struct{
+    int stage;
+    int keyword_index;
+    int start;
+    int end;
+}FinderStatus;
+
+typedef struct{
+    int8_t status;
+    SubStr src;
+    SubStr proto;
+    SubStr port;
+}PayloadSubStr;
 
 struct{
     IP* table;
@@ -274,7 +294,7 @@ int arg_csv(const char* value){
 int get_substring(char* dest, unsigned int dest_len, const char* src, unsigned int start, unsigned int end){
     unsigned int len = end - start;
     if(len >= dest_len){
-        fprintf(stderr, "error: regex match from %i to %i doesn't fit to buffer\n", start, end);
+        fprintf(stderr, "error: match from %i to %i doesn't fit to buffer\n", start, end);
         return 1;
     }
 
@@ -312,7 +332,7 @@ int deallocate_tables(){
     return 0;
 }
 
-int setup_regex(regex_t* date_regex, regex_t* payload_regex){
+int setup_regex(regex_t* date_regex){
     int status;
 
     status = regcomp(date_regex, "([a-z]+ +?[0-9]{1,2} +?[0-9]{1,2}:[0-9]{1,2}:[0-9]{1,2})", REG_EXTENDED | REG_ICASE);
@@ -321,13 +341,108 @@ int setup_regex(regex_t* date_regex, regex_t* payload_regex){
         return 1;
     }
 
-    status = regcomp(payload_regex, " SRC=([^ ]+).*? PROTO=([^ ]+).*? DPT=([0-9]{1,5})", REG_EXTENDED | REG_ICASE);
-    if(status != 0){
-        fprintf(stderr, "failed to compile regex (%i)\n", status);
-        return 1;
+    return 0;
+}
+
+int find_stage(char* buffer, unsigned int i, FinderStatus* fs, PayloadSubStr* result, const char* keyword, const unsigned int keyword_len, char delimiter){
+    // Null check
+    if(buffer[i] == '\0'){
+        fs->end = i - 1;
+        return -1;
+    }
+
+    // Find value
+    if(keyword_len <= fs->keyword_index){
+        if(tolower(buffer[i]) == delimiter){
+            fs->stage++;
+            fs->end = i;
+            return 1;
+        }
+
+    // Find keyword
+    }else if(keyword[fs->keyword_index] == tolower(buffer[i])){
+        fs->keyword_index++;
+        if(fs->keyword_index == keyword_len){
+            fs->start = i + 1;
+        }
+
+    // Doesn't match, reset
+    }else{
+        fs->keyword_index = 0;
     }
 
     return 0;
+}
+
+// TODO This is kind of mess
+// try to find more clean solution
+PayloadSubStr find_payload(char* input, unsigned int size){
+    PayloadSubStr result;
+    FinderStatus fs;
+
+    const char keyword1[] = " src=";
+    const char keyword2[] = " proto=";
+    const char keyword3[] = " dpt=";
+    int status;
+
+    fs.stage = 0;
+    fs.keyword_index = 0;
+    fs.start = 0;
+    fs.end = 0;
+
+    result.status = 0;
+
+    for(unsigned int i = 0;; i++){
+        switch(fs.stage){
+            // Find src=
+            case 0:
+                status = find_stage(input, i, &fs, &result, keyword1, 5, ' ');
+                // EOS
+                if(status == -1) return result;
+                // Found
+                else if(status == 1){
+                    result.src.start = fs.start;
+                    result.src.end = fs.end;
+                    fs.keyword_index = 0;
+                }
+                break;
+            // Find proto=
+            case 1:
+                status = find_stage(input, i, &fs, &result, keyword2, 7, ' ');
+                // EOS
+                if(status == -1) return result;
+                // Found
+                else if(status == 1){
+                    result.proto.start = fs.start;
+                    result.proto.end = fs.end;
+                    fs.keyword_index = 0;
+                }
+                break;
+            // Find dpt=
+            case 2:
+                status = find_stage(input, i, &fs, &result, keyword3, 5, ' ');
+                // EOS
+                if(status == -1){
+                    if(fs.keyword_index == 4){
+                        result.status = 1;
+                        result.port.start = fs.start;
+                        result.port.end = fs.end;
+                    }
+
+                    return result;
+                // Found
+                }else if(status == 1){
+                    result.port.start = fs.start;
+                    result.port.end = fs.end;
+                    result.status = 1;
+                    return result;
+                }
+
+                break;
+        }
+    }
+
+    return result;
 }
 
 int date_equal(const struct tm* date){
@@ -343,13 +458,13 @@ int date_equal(const struct tm* date){
     return 0;
 }
 
-int parse_record(IP* ip, Record* record, const char* buffer, const regmatch_t* regex_match){
+int parse_record(IP* ip, Record* record, const char* buffer, const PayloadSubStr* match){
     int status;
     int temp_port;
     char match_buffer[IPSIZE];
 
     // Copy src
-    status = get_substring(match_buffer, sizeof(match_buffer), buffer, regex_match[1].rm_so, regex_match[1].rm_eo);
+    status = get_substring(match_buffer, sizeof(match_buffer), buffer, match->src.start, match->src.end);
     if(status != 0){
         return 1;
     }
@@ -357,18 +472,18 @@ int parse_record(IP* ip, Record* record, const char* buffer, const regmatch_t* r
     strcpy((char*)ip, match_buffer);
 
     // Copy proto
-    status = get_substring(match_buffer, sizeof(match_buffer), buffer, regex_match[2].rm_so, regex_match[2].rm_eo);
+    status = get_substring(match_buffer, sizeof(match_buffer), buffer, match->proto.start, match->proto.end);
     if(status != 0){
         return 1;
     }
-    if(regex_match[2].rm_eo - regex_match[2].rm_so >= PROTOSIZE){
+    if(match->proto.end - match->proto.start >= PROTOSIZE){
         fprintf(stderr, "error: protocol string doesn't fit\n");
         return 1;
     }
     strcpy(record->proto, match_buffer);
 
     // Copy port
-    status = get_substring(match_buffer, sizeof(match_buffer), buffer, regex_match[3].rm_so, regex_match[3].rm_eo);
+    status = get_substring(match_buffer, sizeof(match_buffer), buffer, match->port.start, match->port.end);
     if(status != 0){
         return 1;
     }
@@ -557,11 +672,12 @@ int check_ip(unsigned int ip, ConnTable* conn_table, PortStr* port_str){
     return 0;
 }
 
-int parse_log(FILE* fp, regex_t* date_regex, regex_t* payload_regex){
+int parse_log(FILE* fp, regex_t* date_regex){
      // File stream variables
     char* buffer = NULL;
     size_t len = 0;
     unsigned int line_num = 0;
+    unsigned int readed;
 
     // Regex variables
     int status;
@@ -569,13 +685,16 @@ int parse_log(FILE* fp, regex_t* date_regex, regex_t* payload_regex){
     char match_buffer[IPSIZE];
     const char* time_status;
 
+    // Match variables
+    PayloadSubStr payload_result;
+
     // Parsing variables
     struct tm temp_time;
     IP temp_ip;
     Record temp_record;
 
     // Parse lines
-    while(getline(&buffer, &len, fp) != -1){
+    while((readed = getline(&buffer, &len, fp)) != -1){
         line_num++;
 
         // Date regex
@@ -597,12 +716,12 @@ int parse_log(FILE* fp, regex_t* date_regex, regex_t* payload_regex){
         // Skip if not the specified date
         if(g_date_type != -1 && date_equal(&temp_time) != 1) continue;
 
-        // Payload regex
-        status = regexec(payload_regex, buffer, 4, regex_match, 0);
-        if(status == REG_NOMATCH) continue;
+        // Find payload
+        payload_result = find_payload(buffer, readed);
+        if(payload_result.status == 0) continue;
 
         // Parse payload
-        if(parse_record(&temp_ip, &temp_record, buffer, regex_match) != 0){
+        if(parse_record(&temp_ip, &temp_record, buffer, &payload_result) != 0){
             fprintf(stderr, "error: invalid syntax in line %i\n", line_num);
             return 1;
         }
@@ -621,10 +740,9 @@ int parse_log(FILE* fp, regex_t* date_regex, regex_t* payload_regex){
 int check_log(){
     FILE* fp = NULL;
     regex_t date_regex;
-    regex_t payload_regex;
 
     // Set up regex
-    if(setup_regex(&date_regex, &payload_regex) != 0){
+    if(setup_regex(&date_regex) != 0){
         return 1;
     }
     if(initialise_tables(2000, 5000) != 0){
@@ -633,7 +751,7 @@ int check_log(){
 
     if(g_read_stdin){
         fp = stdin;
-        if(parse_log(fp, &date_regex, &payload_regex) != 0){
+        if(parse_log(fp, &date_regex) != 0){
             return 1;
         }
     }else{
@@ -650,14 +768,13 @@ int check_log(){
                 return 1;
             }
 
-            if(parse_log(fp, &date_regex, &payload_regex) != 0){
+            if(parse_log(fp, &date_regex) != 0){
                 return 1;
             }
         }
     }
 
     regfree(&date_regex);
-    regfree(&payload_regex);
     fclose(fp);
 
     // Check variables
