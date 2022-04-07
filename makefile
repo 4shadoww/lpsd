@@ -14,6 +14,8 @@ all: lpsd
 $(EXECUTABLE): $(SRC)
 	$(CC) $(CFLAGS) $(LIBS) $(SRC) -o $@
 
+profile: CFLAGS += -pg
+profile: all
 debug: CFLAGS += -g
 debug: all
 
