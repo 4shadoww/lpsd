@@ -7,7 +7,7 @@ SRC=lpsd.c
 IDIR=
 LIBS=
 
-CFLAGS=-Wall -std=gnu17 -O2
+CFLAGS=-Wall -std=gnu17 -O2 -pthread
 
 all: lpsd
 

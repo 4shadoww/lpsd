@@ -20,10 +20,11 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include<unistd.h>
+#include <unistd.h>
 #include <time.h>
 #include <limits.h>
 #include <ctype.h>
+#include <pthread.h>
 
 // Extern arg functions
 extern int print_help(const char*);
@@ -36,6 +37,7 @@ extern int arg_print_ports(const char*);
 extern int arg_out(const char*);
 extern int arg_stdin(const char*);
 extern int arg_csv(const char*);
+extern int arg_threads(const char*);
 
 #define PROTOSIZE 10
 #define IPSIZE 46
@@ -87,6 +89,11 @@ typedef struct{
     SubStr port;
 }PayloadSubStr;
 
+typedef struct{
+    unsigned int start;
+    unsigned int end;
+}Args;
+
 struct{
     IP* table;
     unsigned int items;
@@ -116,6 +123,7 @@ int g_print_ports = 0;
 const char* g_out = NULL;
 int g_read_stdin = 0;
 int g_csv_format = 0;
+int g_threads = 0;
 
 time_t g_t;
 struct tm g_time_now;
@@ -184,7 +192,8 @@ Arg args[] = {
 {"--print-ports",  "-p",           1,    &arg_print_ports},
 {"--out",          "-o",           2,    &arg_out},
 {"--stdin",        "-si",          1,    &arg_stdin},
-{"--csv-format",   "-csv",         1,    &arg_csv}
+{"--csv-format",   "-csv",         1,    &arg_csv},
+{"--threads",      "-th",          2,    &arg_threads}
 };
 
 int print_help(const char* value){
@@ -192,16 +201,18 @@ int print_help(const char* value){
         "\nOptions:\n"
         "  -h,   --help\t\t\tprint help\n"
         "  -v,   --version\t\tprint version\n"
-        "  -i,   --input-file <file(s)>\tlog file(s) (kern.log) delimiter: comma (,)\n\t\t\t\tfiles must be given in ascending order (also the log entries) (see the man page)\n"
+        "  -i,   --input-file <file(s)>\tlog file(s) (kern.log) delimiter: comma (,)\n\t\t\t\tfiles must be given in ascending order (also the log entries)\n"
         "  -d,   --date <date>\t\tcheck logs from this date (format %Y-%m-%d, year is ignored)\n"
         "  -t,   --time-interval <time>\ttime interval in minutes (must be 1-60) (default 5 mins)\n"
         "  -s,   --scans <count>\t\tcount of opened connections to different ports (default 5)\n"
         "  -p,   --print-ports\t\tprint all ports\n"
         "  -o,   --out <file>\t\toutput to file\n"
         "  -si,  --stdin\t\t\tread from standard input (must be ascending)\n"
-        "  -csv, --csv-format\t\toutput in csv format";
+        "  -csv, --csv-format\t\toutput in csv format\n"
+        "  -th,  --threads\t\tthread count, range 2-16 (default none)\n\n"
+        "\t\tsee also the man page lpsd(1)";
 
-    printf("usage: %s [OPTIONS...] -i <log_file> \n%s\n", g_program_name, options);
+    printf("usage: %s [OPTIONS...] -i <file1,file2...> \n%s\n", g_program_name, options);
     return -1;
 }
 
@@ -263,7 +274,7 @@ int arg_time_interval(const char* value){
 int arg_scans(const char* value){
     g_cons = atoi(value);
     if(g_cons <= 0){
-        fprintf(stderr, "error: invalid scans value \"%s\"\nmust be more than 0\n", value);
+        fprintf(stderr, "error: invalid scans value \"%s\", must be greater than 0\n", value);
         return 1;
     }
 
@@ -287,6 +298,16 @@ int arg_stdin(const char* value){
 
 int arg_csv(const char* value){
     g_csv_format = 1;
+    return 0;
+}
+
+int arg_threads(const char* value){
+    g_threads = atoi(value);
+    if(g_threads < 2 || g_threads > 16){
+        fprintf(stderr, "error: invalid threads value \"%s\", must be in range 2-16\n", value);
+        return 1;
+    }
+
     return 0;
 }
 
@@ -710,8 +731,45 @@ int parse_log(FILE* fp){
     return 0;
 }
 
+void start_check(unsigned int start, unsigned int end){
+    // Check variables
+    ConnTable conn_table;
+    PortStr port_str;
+
+     // Initialise connection table and port_str
+    conn_table.len = 50;
+    conn_table.items = 0;
+    conn_table.table = malloc(sizeof(PortProto) * conn_table.len);
+
+    port_str.len = 100;
+    port_str.chars = 0;
+    port_str.buffer = malloc(sizeof(char) * port_str.len);
+
+    for(unsigned int i = start; i < end; i++){
+        check_ip(i, &conn_table, &port_str);
+        conn_table.items = 0;
+        port_str.chars = 0;
+    }
+
+    free(conn_table.table);
+    free(port_str.buffer);
+}
+
+void* start_thread(void* args){
+    Args* pargs = (Args*)args;
+    start_check(pargs->start, pargs->end);
+    free(args);
+    return NULL;
+}
+
 int check_log(){
     FILE* fp = NULL;
+
+    // Threading variables
+    unsigned int per_thread;
+    pthread_t threads[16];
+    int status;
+    Args* args;
 
     if(initialise_tables(2000, 5000) != 0){
         return 1;
@@ -744,36 +802,47 @@ int check_log(){
 
     fclose(fp);
 
-    // Check variables
-    ConnTable conn_table;
-    PortStr port_str;
-
-
     // Csv header
     if(g_csv_format){
         printf("scan_time,address,ports\n");
     }
 
-    // Initialise connection table and port_str
-    conn_table.len = 50;
-    conn_table.items = 0;
-    conn_table.table = malloc(sizeof(PortProto) * conn_table.len);
-
-    port_str.len = 100;
-    port_str.chars = 0;
-    port_str.buffer = malloc(sizeof(char) * port_str.len);
-
     // TODO add threads?
     // Find port scans
+    if(g_threads > 1){
+        per_thread = g_ip_table.items / g_threads;
 
-    for(unsigned int i = 0; i < g_ip_table.items; i++){
-        check_ip(i, &conn_table, &port_str);
-        conn_table.items = 0;
-        port_str.chars = 0;
+        // The thread will free this
+        args = malloc(sizeof(Args));
+        args->start = per_thread*(g_threads-1);
+        args->end = g_ip_table.items;
+
+        status = pthread_create(&threads[g_threads-1], NULL, start_thread, (void*)args);
+        if(status != 0){
+            fprintf(stderr, "error: failed to start thread (%i)", status);
+            return 1;
+        }
+
+        for(unsigned int i = 0; i < g_threads - 1; i++){
+            // The thread will free this
+            args = malloc(sizeof(Args));
+            args->start = per_thread*i;
+            args->end = per_thread*(i+1);
+
+            status = pthread_create(&threads[i], NULL, start_thread, (void*)args);
+            if(status != 0){
+                fprintf(stderr, "error: failed to start thread (%i)", status);
+                return 1;
+            }
+        }
+        for(unsigned int i = 0; i < g_threads; i++){
+            pthread_join(threads[i], NULL);
+        }
+
+
+    }else{
+        start_check(0, g_ip_table.items);
     }
-
-    free(conn_table.table);
-    free(port_str.buffer);
 
     deallocate_tables();
 
