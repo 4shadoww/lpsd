@@ -21,7 +21,6 @@
 #include <stdlib.h>
 #include <string.h>
 #include<unistd.h>
-#include <regex.h>
 #include <time.h>
 #include <limits.h>
 #include <ctype.h>
@@ -329,18 +328,6 @@ int initialise_tables(unsigned int ip_table_size, unsigned int record_table_size
 int deallocate_tables(){
     free(g_ip_table.table);
     free(g_record_table.table);
-    return 0;
-}
-
-int setup_regex(regex_t* date_regex){
-    int status;
-
-    status = regcomp(date_regex, "([a-z]+ +?[0-9]{1,2} +?[0-9]{1,2}:[0-9]{1,2}:[0-9]{1,2})", REG_EXTENDED | REG_ICASE);
-    if(status != 0){
-        fprintf(stderr, "failed to compile regex (%i)\n", status);
-        return 1;
-    }
-
     return 0;
 }
 
@@ -672,20 +659,15 @@ int check_ip(unsigned int ip, ConnTable* conn_table, PortStr* port_str){
     return 0;
 }
 
-int parse_log(FILE* fp, regex_t* date_regex){
+int parse_log(FILE* fp){
      // File stream variables
     char* buffer = NULL;
     size_t len = 0;
     unsigned int line_num = 0;
     unsigned int readed;
 
-    // Regex variables
-    int status;
-    regmatch_t regex_match[4];
-    char match_buffer[IPSIZE];
-    const char* time_status;
-
     // Match variables
+    const char* time_status;
     PayloadSubStr payload_result;
 
     // Parsing variables
@@ -697,21 +679,11 @@ int parse_log(FILE* fp, regex_t* date_regex){
     while((readed = getline(&buffer, &len, fp)) != -1){
         line_num++;
 
-        // Date regex
-        status = regexec(date_regex, buffer, 1, regex_match, 0);
-        if(status == REG_NOMATCH) continue;
-
-        // Copy results
-        status = get_substring(match_buffer, sizeof(match_buffer), buffer, regex_match[0].rm_so, regex_match[0].rm_eo);
-        if(status != 0){
-            fprintf(stderr, "error: invalid syntax in line %i\n", line_num);
-            return 1;
-        }
-
         // Parse time
-        time_status = parse_time(match_buffer, "%b %d %H:%M:%S", &temp_time);
-        if(time_status == NULL || *time_status != '\0'){
-            fprintf(stderr, "error: failed to parse time \"%s\"\n", match_buffer);
+        time_status = parse_time(buffer, "%b %d %H:%M:%S", &temp_time);
+        if(time_status == NULL || time_status - buffer < 15){
+            fprintf(stderr, "error: failed to parse time in line %i\n", line_num);
+            continue;
         }
         // Skip if not the specified date
         if(g_date_type != -1 && date_equal(&temp_time) != 1) continue;
@@ -721,6 +693,7 @@ int parse_log(FILE* fp, regex_t* date_regex){
         if(payload_result.status == 0) continue;
 
         // Parse payload
+        // Let's not use regex because it's slow
         if(parse_record(&temp_ip, &temp_record, buffer, &payload_result) != 0){
             fprintf(stderr, "error: invalid syntax in line %i\n", line_num);
             return 1;
@@ -739,19 +712,14 @@ int parse_log(FILE* fp, regex_t* date_regex){
 
 int check_log(){
     FILE* fp = NULL;
-    regex_t date_regex;
 
-    // Set up regex
-    if(setup_regex(&date_regex) != 0){
-        return 1;
-    }
     if(initialise_tables(2000, 5000) != 0){
         return 1;
     }
 
     if(g_read_stdin){
         fp = stdin;
-        if(parse_log(fp, &date_regex) != 0){
+        if(parse_log(fp) != 0){
             return 1;
         }
     }else{
@@ -768,13 +736,12 @@ int check_log(){
                 return 1;
             }
 
-            if(parse_log(fp, &date_regex) != 0){
+            if(parse_log(fp) != 0){
                 return 1;
             }
         }
     }
 
-    regfree(&date_regex);
     fclose(fp);
 
     // Check variables
