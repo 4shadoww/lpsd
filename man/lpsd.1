@@ -1,4 +1,4 @@
-.TH LPSD 1 "2022-04-07" "pre-1.0"
+.TH LPSD 1 "2022-04-08" "pre-1.0"
 .SH NAME
 lpsd – log-based port scan detector
 
@@ -65,6 +65,9 @@ Output in csv format.
 .TP
 \fB-th\fR, \fB--threads\fR
 Thread count used to find scans (valid thread count 2-16). By default no additional threads are used. This doesn't affect parsing speed.
+.TP
+\fB-ro\fR, \fB--reorder\fR
+Reorder records after parsing. Use this option if the files have records which are out of order.
 
 .SH AUTHOR
 Noa-Emil Nissinen

@@ -38,6 +38,7 @@ extern int arg_out(const char*);
 extern int arg_stdin(const char*);
 extern int arg_csv(const char*);
 extern int arg_threads(const char*);
+extern int arg_reorder(const char*);
 
 #define PROTOSIZE 10
 #define IPSIZE 46
@@ -50,6 +51,7 @@ typedef struct{
     char proto[PROTOSIZE];
     unsigned short port;
     struct tm time;
+    unsigned int time_m;
 }Record;
 
 typedef struct{
@@ -124,6 +126,7 @@ const char* g_out = NULL;
 int g_read_stdin = 0;
 int g_csv_format = 0;
 int g_threads = 0;
+int g_reorder = 0;
 
 time_t g_t;
 struct tm g_time_now;
@@ -193,7 +196,8 @@ Arg args[] = {
 {"--out",          "-o",           2,    &arg_out},
 {"--stdin",        "-si",          1,    &arg_stdin},
 {"--csv-format",   "-csv",         1,    &arg_csv},
-{"--threads",      "-th",          2,    &arg_threads}
+{"--threads",      "-th",          2,    &arg_threads},
+{"--reorder",      "-ro",          1,    &arg_reorder}
 };
 
 int print_help(const char* value){
@@ -209,7 +213,8 @@ int print_help(const char* value){
         "  -o,   --out <file>\t\toutput to file\n"
         "  -si,  --stdin\t\t\tread from standard input (must be ascending)\n"
         "  -csv, --csv-format\t\toutput in csv format\n"
-        "  -th,  --threads\t\tthread count, range 2-16 (default none)\n\n"
+        "  -th,  --threads <count>\tthread count, range 2-16 (default none)\n"
+        "  -ro,  --reorder\t\treorder records (enable this flag if records are not in order already)\n\n"
         "\t\tsee also the man page lpsd(1)";
 
     printf("usage: %s [OPTIONS...] -i <file1,file2...> \n%s\n", g_program_name, options);
@@ -308,6 +313,11 @@ int arg_threads(const char* value){
         return 1;
     }
 
+    return 0;
+}
+
+int arg_reorder(const char* value){
+    g_reorder = 1;
     return 0;
 }
 
@@ -453,6 +463,11 @@ PayloadSubStr find_payload(char* input, unsigned int size){
     return result;
 }
 
+unsigned int tm_to_minutes(const struct tm* date){
+    return ((date->tm_year - 1970) * 525949) + (date->tm_mon * 43829) + \
+        (date->tm_mday * 1440) + (date->tm_hour * 60) + (date->tm_min);
+}
+
 int date_equal(const struct tm* date){
     switch(g_date_type){
         case 2:
@@ -551,12 +566,6 @@ int add_iprecord(const IP* ip, const Record* record){
     return 0;
 }
 
-int get_timeval(struct tm* t1, struct tm* t2){
-    return ((t2->tm_year - t1->tm_year) * 525949) + ((t2->tm_mon - t1->tm_mon) * 43829) + \
-        ((t2->tm_mday - t1->tm_mday) * 1440) + ((t2->tm_hour - t1->tm_hour) * 60) + \
-        (t2->tm_min - t1->tm_min);
-}
-
 void add_portproto(ConnTable* conn_table, unsigned short port, char* proto){
     unsigned int new_size;
     // Check is the space
@@ -636,25 +645,25 @@ void form_port_string(PortStr* port_str, ConnTable* conn_table){
 }
 
 int check_ip(unsigned int ip, ConnTable* conn_table, PortStr* port_str){
-    struct tm* start_time;
-    int timeval;
+    unsigned int start_time;
+    unsigned int timeval;
     unsigned int j;
 
     char timestr[20];
 
     for(unsigned int i = 0; i < g_record_table.items; i++){
         if(ip != g_record_table.table[i].src) continue;
-        start_time = &g_record_table.table[i].time;
+        start_time = g_record_table.table[i].time_m;
 
         add_portproto(conn_table, g_record_table.table[i].port, g_record_table.table[i].proto);
 
         for(j = i+1; j < g_record_table.items; j++){
             if(ip != g_record_table.table[j].src) continue;
             // Check is timeval too great
-            timeval = get_timeval(start_time, &g_record_table.table[j].time);
-            if(timeval == -1 || timeval > g_interval) break;
+            timeval = g_record_table.table[j].time_m - start_time;
+            if(timeval > g_interval) break;
             if(!port_in_list(conn_table, g_record_table.table[j].port)){
-                start_time = &g_record_table.table[j].time;
+                start_time = g_record_table.table[j].time_m;
                 add_portproto(conn_table, g_record_table.table[j].port, g_record_table.table[j].proto);
             }
         }
@@ -681,7 +690,7 @@ int check_ip(unsigned int ip, ConnTable* conn_table, PortStr* port_str){
 }
 
 int parse_log(FILE* fp){
-     // File stream variables
+    // File stream variables
     char* buffer = NULL;
     size_t len = 0;
     unsigned int line_num = 0;
@@ -720,6 +729,7 @@ int parse_log(FILE* fp){
             return 1;
         }
         temp_record.time = temp_time;
+        temp_record.time_m = tm_to_minutes(&temp_time);
         // Assume the year to be current
         temp_record.time.tm_year = g_time_now.tm_year;
 
@@ -736,7 +746,7 @@ void start_check(unsigned int start, unsigned int end){
     ConnTable conn_table;
     PortStr port_str;
 
-     // Initialise connection table and port_str
+    // Initialise connection table and port_str
     conn_table.len = 50;
     conn_table.items = 0;
     conn_table.table = malloc(sizeof(PortProto) * conn_table.len);
@@ -760,6 +770,13 @@ void* start_thread(void* args){
     start_check(pargs->start, pargs->end);
     free(args);
     return NULL;
+}
+
+int compare_records(const void* va, const void* vb){
+    Record* a = (Record*)va;
+    Record* b = (Record*)vb;
+
+    return a->time_m - b->time_m;
 }
 
 int check_log(){
@@ -802,12 +819,15 @@ int check_log(){
 
     fclose(fp);
 
+    if(g_reorder){
+        qsort(g_record_table.table, g_record_table.items, sizeof(Record), compare_records);
+    }
+
     // Csv header
     if(g_csv_format){
         printf("scan_time,address,ports\n");
     }
 
-    // TODO add threads?
     // Find port scans
     if(g_threads > 1){
         per_thread = g_ip_table.items / g_threads;
