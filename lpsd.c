@@ -711,6 +711,7 @@ int parse_log(FILE* fp){
 
         // Parse time
         time_status = parse_time(buffer, "%b %d %H:%M:%S", &temp_time);
+        if(time_status == 0) continue;
         if(time_status == NULL || time_status - buffer < 15){
             fprintf(stderr, "error: failed to parse time in line %i\n", line_num);
             continue;
