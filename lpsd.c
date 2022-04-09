@@ -646,7 +646,6 @@ void form_port_string(PortStr* port_str, ConnTable* conn_table){
 
 int check_ip(unsigned int ip, ConnTable* conn_table, PortStr* port_str){
     unsigned int start_time;
-    unsigned int iterating_time;
     unsigned int timeval;
     unsigned int j;
 
@@ -655,17 +654,16 @@ int check_ip(unsigned int ip, ConnTable* conn_table, PortStr* port_str){
     for(unsigned int i = 0; i < g_record_table.items; i++){
         if(ip != g_record_table.table[i].src) continue;
         start_time = g_record_table.table[i].time_m;
-        iterating_time = start_time;
 
         add_portproto(conn_table, g_record_table.table[i].port, g_record_table.table[i].proto);
 
         for(j = i+1; j < g_record_table.items; j++){
             if(ip != g_record_table.table[j].src) continue;
             // Check is timeval too great
-            timeval = g_record_table.table[j].time_m - iterating_time;
+            timeval = g_record_table.table[j].time_m - start_time;
             if(timeval > g_interval) break;
             if(!port_in_list(conn_table, g_record_table.table[j].port)){
-                iterating_time = g_record_table.table[j].time_m;
+                start_time = g_record_table.table[j].time_m;
                 add_portproto(conn_table, g_record_table.table[j].port, g_record_table.table[j].proto);
             }
         }
