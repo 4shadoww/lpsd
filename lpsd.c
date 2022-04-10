@@ -206,7 +206,7 @@ int print_help(const char* value){
         "  -h,   --help\t\t\tprint help\n"
         "  -v,   --version\t\tprint version\n"
         "  -i,   --input-file <file(s)>\tlog file(s) (kern.log) delimiter: comma (,)\n\t\t\t\tfiles must be given in ascending order (also the log entries)\n"
-        "  -d,   --date <date>\t\tcheck logs from this date (format %Y-%m-%d, year is ignored)\n"
+        "  -d,   --date <date>\t\tcheck logs from this date (format: %m-%d or %m)\n"
         "  -t,   --time-interval <time>\ttime interval in minutes (must be 1-60) (default 5 mins)\n"
         "  -s,   --scans <count>\t\tcount of opened connections to different ports (default 5)\n"
         "  -p,   --print-ports\t\tprint all ports\n"
@@ -244,16 +244,12 @@ int arg_date(const char* value){
     const char* status = NULL;
 
     switch(type){
-        case 2:
-            status = parse_time(value, "%Y-%m-%d", &g_date);
-            g_date_type = 2;
-            break;
         case 1:
-            status = parse_time(value, "%Y-%m", &g_date);
+            status = parse_time(value, "%m-%d", &g_date);
             g_date_type = 1;
             break;
         case 0:
-            status = parse_time(value, "%Y", &g_date);
+            status = parse_time(value, "%m", &g_date);
             g_date_type = 0;
             break;
     }
@@ -470,12 +466,10 @@ unsigned int tm_to_minutes(const struct tm* date){
 
 int date_equal(const struct tm* date){
     switch(g_date_type){
-        case 2:
-            return (g_date.tm_mday == date->tm_mday && g_date.tm_mon == date->tm_mon);
         case 1:
-            return (g_date.tm_mon == date->tm_mon);
+            return (g_date.tm_mday == date->tm_mday && g_date.tm_mon == date->tm_mon);
         case 0:
-            return 1;
+            return (g_date.tm_mon == date->tm_mon);
     }
 
     return 0;
