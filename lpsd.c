@@ -111,7 +111,7 @@ struct{
 } g_record_table;
 
 // Version
-char g_version_string[] = "lpsd pre-1.0";
+char g_version_string[] = "lpsd 1.0";
 
 // Global variables
 const char* g_program_name;
