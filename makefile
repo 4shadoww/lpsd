@@ -20,10 +20,10 @@ debug: CFLAGS += -g
 debug: all
 
 install: $(EXECUTABLE)
-	install $(EXECUTABLE) /usr/bin/
+	install -D $(EXECUTABLE) ${DESTDIR}/usr/bin/
 	gzip man/lpsd.1 -c > man/lpsd.1.gz
-	install -m 644 man/lpsd.1.gz /usr/share/man/man1/lpsd.1.gz
+	install -D -m 644 man/lpsd.1.gz ${DESTDIR}/usr/share/man/man1/lpsd.1.gz
 
 uninstall:
-	rm /usr/bin/$(EXECUTABLE)
-	rm /usr/share/man/man1/lpsd.1.gz
+	rm ${DESTDIR}/usr/bin/$(EXECUTABLE)
+	rm ${DESTDIR}/usr/share/man/man1/lpsd.1.gz
