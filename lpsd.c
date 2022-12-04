@@ -56,18 +56,18 @@ typedef struct{
 
 typedef struct{
     unsigned short port;
-    char* proto;
+    char *proto;
 }PortProto;
 
 typedef struct{
-    PortProto* table;
+    PortProto *table;
     unsigned int items;
     unsigned int len;
 
 }ConnTable;
 
 typedef struct{
-    char* buffer;
+    char *buffer;
     unsigned int chars;
     unsigned int len;
 }PortStr;
@@ -97,14 +97,14 @@ typedef struct{
 }Args;
 
 struct{
-    IP* table;
+    IP *table;
     unsigned int items;
     unsigned int len;
 } g_ip_table;
 
 
 struct{
-    Record* table;
+    Record *table;
     unsigned int items;
     unsigned int len;
 
@@ -114,15 +114,15 @@ struct{
 char g_version_string[] = "lpsd 1.0";
 
 // Global variables
-const char* g_program_name;
+const char *g_program_name;
 unsigned int g_log_count = 1;
-const char** g_log_location;
+const char **g_log_location;
 struct tm g_date;
 int g_date_type = -1;
 int g_interval = 5;
 int g_cons = 5;
 int g_print_ports = 0;
-const char* g_out = NULL;
+const char *g_out = NULL;
 int g_read_stdin = 0;
 int g_csv_format = 0;
 int g_threads = 0;
@@ -133,7 +133,7 @@ struct tm g_time_now;
 
 // Arg helper functions
 
-unsigned int char_count(const char* str, const char c){
+unsigned int char_count(const char *str, const char c){
     unsigned int result = 0;
     unsigned int i = 0;
     while(str[i] != '\0'){
@@ -143,13 +143,13 @@ unsigned int char_count(const char* str, const char c){
     return result;
 }
 
-void copy_file_names(const char* str){
+void copy_file_names(const char *str){
     const char delimiter = ',';
     unsigned int i = 0;
     unsigned int begin = 0;
     unsigned int str_len;
     unsigned int str_num = 0;
-    char* temp;
+    char *temp;
 
     while(str[i] != '\0'){
         if(str[i] == delimiter){
@@ -171,7 +171,7 @@ void copy_file_names(const char* str){
     g_log_location[str_num] = temp;
 }
 
-const char* parse_time(const char* input, const char* format, struct tm* tm){
+const char *parse_time(const char *input, const char *format, struct tm *tm){
     memset(tm, '\0', sizeof(*tm));
     return strptime(input, format, tm);
 }
@@ -200,7 +200,7 @@ Arg args[] = {
 {"--reorder",      "-ro",          1,    &arg_reorder}
 };
 
-int print_help(const char* value){
+int print_help(const char *value){
     char options[] =
         "\nOptions:\n"
         "  -h,   --help\t\t\tprint help\n"
@@ -221,12 +221,12 @@ int print_help(const char* value){
     return -1;
 }
 
-int print_version(const char* value){
+int print_version(const char *value){
     printf("%s\n", g_version_string);
     return -1;
 }
 
-int arg_log_location(const char* value){
+int arg_log_location(const char *value){
     unsigned int file_count = char_count(value, ',') + 1;
     if(file_count == 1){
         g_log_location[0] = value;
@@ -239,9 +239,9 @@ int arg_log_location(const char* value){
     return 0;
 }
 
-int arg_date(const char* value){
+int arg_date(const char *value){
     unsigned int type = char_count(value, '-');
-    const char* status = NULL;
+    const char *status = NULL;
 
     switch(type){
         case 1:
@@ -262,7 +262,7 @@ int arg_date(const char* value){
     return 0;
 }
 
-int arg_time_interval(const char* value){
+int arg_time_interval(const char *value){
     g_interval = atoi(value);
     if(g_interval <= 0 || g_interval > 60){
         fprintf(stderr, "error: invalid interval %s\nvalid values 1-60\n", value);
@@ -272,7 +272,7 @@ int arg_time_interval(const char* value){
     return 0;
 }
 
-int arg_scans(const char* value){
+int arg_scans(const char *value){
     g_cons = atoi(value);
     if(g_cons <= 0){
         fprintf(stderr, "error: invalid scans value \"%s\", must be greater than 0\n", value);
@@ -282,27 +282,27 @@ int arg_scans(const char* value){
     return 0;
 }
 
-int arg_print_ports(const char* value){
+int arg_print_ports(const char *value){
     g_print_ports = 1;
     return 0;
 }
 
-int arg_out(const char* value){
+int arg_out(const char *value){
     g_out = value;
     return 0;
 }
 
-int arg_stdin(const char* value){
+int arg_stdin(const char *value){
     g_read_stdin = 1;
     return 0;
 }
 
-int arg_csv(const char* value){
+int arg_csv(const char *value){
     g_csv_format = 1;
     return 0;
 }
 
-int arg_threads(const char* value){
+int arg_threads(const char *value){
     g_threads = atoi(value);
     if(g_threads < 2 || g_threads > 16){
         fprintf(stderr, "error: invalid threads value \"%s\", must be in range 2-16\n", value);
@@ -312,12 +312,12 @@ int arg_threads(const char* value){
     return 0;
 }
 
-int arg_reorder(const char* value){
+int arg_reorder(const char *value){
     g_reorder = 1;
     return 0;
 }
 
-int get_substring(char* dest, unsigned int dest_len, const char* src, unsigned int start, unsigned int end){
+int get_substring(char *dest, unsigned int dest_len, const char *src, unsigned int start, unsigned int end){
     unsigned int len = end - start;
     if(len >= dest_len){
         fprintf(stderr, "error: match from %i to %i doesn't fit to buffer\n", start, end);
@@ -358,7 +358,7 @@ int deallocate_tables(){
     return 0;
 }
 
-int find_stage(char* buffer, unsigned int i, FinderStatus* fs, PayloadSubStr* result, const char* keyword, const unsigned int keyword_len, char delimiter){
+int find_stage(char *buffer, unsigned int i, FinderStatus *fs, PayloadSubStr *result, const char *keyword, const unsigned int keyword_len, char delimiter){
     // Null check
     if(buffer[i] == '\0'){
         fs->end = i - 1;
@@ -390,7 +390,7 @@ int find_stage(char* buffer, unsigned int i, FinderStatus* fs, PayloadSubStr* re
 
 // TODO This is kind of mess
 // try to find more clean solution
-PayloadSubStr find_payload(char* input, unsigned int size){
+PayloadSubStr find_payload(char *input, unsigned int size){
     PayloadSubStr result;
     FinderStatus fs;
 
@@ -459,12 +459,12 @@ PayloadSubStr find_payload(char* input, unsigned int size){
     return result;
 }
 
-unsigned int tm_to_minutes(const struct tm* date){
+unsigned int tm_to_minutes(const struct tm *date){
     return ((date->tm_year - 1970) * 525949) + (date->tm_mon * 43829) + \
         (date->tm_mday * 1440) + (date->tm_hour * 60) + (date->tm_min);
 }
 
-int date_equal(const struct tm* date){
+int date_equal(const struct tm *date){
     switch(g_date_type){
         case 1:
             return (g_date.tm_mday == date->tm_mday && g_date.tm_mon == date->tm_mon);
@@ -475,7 +475,7 @@ int date_equal(const struct tm* date){
     return 0;
 }
 
-int parse_record(IP* ip, Record* record, const char* buffer, const PayloadSubStr* match){
+int parse_record(IP *ip, Record *record, const char *buffer, const PayloadSubStr *match){
     int status;
     int temp_port;
     char match_buffer[IPSIZE];
@@ -514,15 +514,15 @@ int parse_record(IP* ip, Record* record, const char* buffer, const PayloadSubStr
     return 0;
 }
 
-void* allocate_more_space(void* src, unsigned int element_size, unsigned int length, unsigned new_space){
-    void* new_buffer = malloc(element_size*new_space);
+void *allocate_more_space(void *src, unsigned int element_size, unsigned int length, unsigned new_space){
+    void *new_buffer = malloc(element_size*new_space);
     memcpy(new_buffer, src, element_size*length);
     free(src);
 
     return new_buffer;
 }
 
-int add_iprecord(const IP* ip, const Record* record){
+int add_iprecord(const IP *ip, const Record *record){
     int ip_in_table = -1;
     unsigned int new_size;
 
@@ -560,7 +560,7 @@ int add_iprecord(const IP* ip, const Record* record){
     return 0;
 }
 
-void add_portproto(ConnTable* conn_table, unsigned short port, char* proto){
+void add_portproto(ConnTable *conn_table, unsigned short port, char *proto){
     unsigned int new_size;
     // Check is the space
     if(conn_table->len <= conn_table->items){
@@ -573,7 +573,7 @@ void add_portproto(ConnTable* conn_table, unsigned short port, char* proto){
     conn_table->items++;
 }
 
-int port_in_list(ConnTable* conn_table, unsigned short port){
+int port_in_list(ConnTable *conn_table, unsigned short port){
     for(unsigned int i = 0; i < conn_table->items; i++){
         if(conn_table->table[i].port == port) return 1;
     }
@@ -581,7 +581,7 @@ int port_in_list(ConnTable* conn_table, unsigned short port){
     return 0;
 }
 
-void create_port_list(PortStr* port_str, ConnTable* conn_table){
+void create_port_list(PortStr *port_str, ConnTable *conn_table){
     char temp[PROTOSIZE + 5 + 4];
     unsigned int temp_len;
     unsigned int new_size;
@@ -621,7 +621,7 @@ void create_port_list(PortStr* port_str, ConnTable* conn_table){
 }
 
 
-void form_port_string(PortStr* port_str, ConnTable* conn_table){
+void form_port_string(PortStr *port_str, ConnTable *conn_table){
     if(g_csv_format){
         if(g_print_ports){
             create_port_list(port_str, conn_table);
@@ -638,7 +638,7 @@ void form_port_string(PortStr* port_str, ConnTable* conn_table){
     }
 }
 
-int check_ip(unsigned int ip, ConnTable* conn_table, PortStr* port_str){
+int check_ip(unsigned int ip, ConnTable *conn_table, PortStr *port_str){
     unsigned int start_time;
     unsigned int timeval;
     unsigned int j;
@@ -683,15 +683,15 @@ int check_ip(unsigned int ip, ConnTable* conn_table, PortStr* port_str){
     return 0;
 }
 
-int parse_log(FILE* fp){
+int parse_log(FILE *fp){
     // File stream variables
-    char* buffer = NULL;
+    char *buffer = NULL;
     size_t len = 0;
     unsigned int line_num = 0;
     unsigned int readed;
 
     // Match variables
-    const char* time_status;
+    const char *time_status;
     PayloadSubStr payload_result;
 
     // Parsing variables
@@ -760,28 +760,28 @@ void start_check(unsigned int start, unsigned int end){
     free(port_str.buffer);
 }
 
-void* start_thread(void* args){
-    Args* pargs = (Args*)args;
+void *start_thread(void *args){
+    Args *pargs = (Args*)args;
     start_check(pargs->start, pargs->end);
     free(args);
     return NULL;
 }
 
-int compare_records(const void* va, const void* vb){
-    Record* a = (Record*)va;
-    Record* b = (Record*)vb;
+int compare_records(const void *va, const void *vb){
+    Record *a = (Record*)va;
+    Record *b = (Record*)vb;
 
     return a->time_m - b->time_m;
 }
 
 int check_log(){
-    FILE* fp = NULL;
+    FILE *fp = NULL;
 
     // Threading variables
     unsigned int per_thread;
     pthread_t threads[16];
     int status;
-    Args* args;
+    Args *args;
 
     if(initialise_tables(2000, 5000) != 0){
         return 1;
@@ -876,8 +876,8 @@ int files_accessible(){
     return 1;
 }
 
-int main(int argc, char** argv){
-    FILE* fp = NULL;
+int main(int argc, char **argv){
+    FILE *fp = NULL;
 
     // Initialise
     g_program_name = argv[0];
@@ -885,7 +885,7 @@ int main(int argc, char** argv){
     // If there is more than one file new memory is allocated to heap
     // It's not freed because there is no point in that
     // This will however show up as an error in valgrind
-    const char* default_pointer[1] = { NULL };
+    const char *default_pointer[1] = { NULL };
     g_log_location = default_pointer;
     g_log_location[0] = NULL;
 
