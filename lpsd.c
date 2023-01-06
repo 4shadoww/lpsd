@@ -113,6 +113,8 @@ struct{
 // Version
 char g_version_string[] = "lpsd 1.0";
 
+// Default file name pointer
+const char *default_pointer[1] = { NULL };
 // Global variables
 const char *g_program_name;
 unsigned int g_log_count = 1;
@@ -885,7 +887,6 @@ int main(int argc, char **argv){
     // If there is more than one file new memory is allocated to heap
     // It's not freed because there is no point in that
     // This will however show up as an error in valgrind
-    const char *default_pointer[1] = { NULL };
     g_log_location = default_pointer;
     g_log_location[0] = NULL;
 
