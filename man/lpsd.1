@@ -1,4 +1,4 @@
-.TH LPSD 1 "2022-04-13" "1.0"
+.TH LPSD 1 "2024-08-18" "1.1"
 .SH NAME
 lpsd – log-based port scan detector
 
@@ -68,6 +68,10 @@ Thread count used to find scans (valid thread count 2-16). By default no additio
 .TP
 \fB-ro\fR, \fB--reorder\fR
 Reorder records after parsing. Use this option if the files have records which are out of order.
+.TP
+\fB-tf\fR, \fB--time-format\fR \fIformat\fR
+time format of log enties (default %Y-%m-%dT%H:%M:%S)
+
 
 .SH AUTHOR
 Noa-Emil Nissinen

@@ -1,5 +1,5 @@
 /*
-  Copyright (C) 2022 Noa-Emil Nissinen
+  Copyright (C) 2022-2024 Noa-Emil Nissinen
 
   This program is free software: you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -39,6 +39,7 @@ extern int arg_stdin(const char*);
 extern int arg_csv(const char*);
 extern int arg_threads(const char*);
 extern int arg_reorder(const char*);
+extern int arg_time_format(const char*);
 
 #define PROTOSIZE 10
 #define IPSIZE 46
@@ -110,8 +111,10 @@ struct{
 
 } g_record_table;
 
+// Constants
+const char g_default_time_format[] = "%Y-%m-%dT%H:%M:%S";
 // Version
-char g_version_string[] = "lpsd 1.0";
+const char g_version_string[] = "lpsd 1.1";
 
 // Default file name pointer
 const char *default_pointer[1] = { NULL };
@@ -129,6 +132,7 @@ int g_read_stdin = 0;
 int g_csv_format = 0;
 int g_threads = 0;
 int g_reorder = 0;
+const char *g_time_format = NULL;
 
 time_t g_t;
 struct tm g_time_now;
@@ -199,7 +203,8 @@ Arg args[] = {
 {"--stdin",        "-si",          1,    &arg_stdin},
 {"--csv-format",   "-csv",         1,    &arg_csv},
 {"--threads",      "-th",          2,    &arg_threads},
-{"--reorder",      "-ro",          1,    &arg_reorder}
+{"--reorder",      "-ro",          1,    &arg_reorder},
+{"--time-format",  "-tf",          2,    &arg_time_format}
 };
 
 int print_help(const char *value){
@@ -216,7 +221,8 @@ int print_help(const char *value){
         "  -si,  --stdin\t\t\tread from standard input (must be ascending)\n"
         "  -csv, --csv-format\t\toutput in csv format\n"
         "  -th,  --threads <count>\tthread count, range 2-16 (default none)\n"
-        "  -ro,  --reorder\t\treorder records (enable this flag if records are not in order already)\n\n"
+        "  -ro,  --reorder\t\treorder records (enable this flag if records are not in order already)\n"
+        "  -tf,  --time-format <format>\ttime format of log enties (default %Y-%m-%dT%H:%M:%S)\n\n"
         "\t\tsee also the man page lpsd(1)";
 
     printf("usage: %s [OPTIONS...] -i <file1,file2...> \n%s\n", g_program_name, options);
@@ -316,6 +322,11 @@ int arg_threads(const char *value){
 
 int arg_reorder(const char *value){
     g_reorder = 1;
+    return 0;
+}
+
+int arg_time_format(const char *value){
+    g_time_format = value;
     return 0;
 }
 
@@ -469,7 +480,8 @@ unsigned int tm_to_minutes(const struct tm *date){
 int date_equal(const struct tm *date){
     switch(g_date_type){
         case 1:
-            return (g_date.tm_mday == date->tm_mday && g_date.tm_mon == date->tm_mon);
+            return (g_date.tm_mday == date->tm_mday &&
+                    g_date.tm_mon == date->tm_mon);
         case 0:
             return (g_date.tm_mon == date->tm_mon);
     }
@@ -706,7 +718,7 @@ int parse_log(FILE *fp){
         line_num++;
 
         // Parse time
-        time_status = parse_time(buffer, "%b %d %H:%M:%S", &temp_time);
+        time_status = parse_time(buffer, g_time_format, &temp_time);
         if(time_status == 0) continue;
         if(time_status == NULL || time_status - buffer < 15){
             fprintf(stderr, "error: failed to parse time in line %i\n", line_num);
@@ -897,7 +909,8 @@ int main(int argc, char **argv){
 
         // Loop flag args
         for(unsigned int j = 0; j < sizeof(args)/sizeof(Arg); j++){
-            if(strcmp(argv[i], args[j].arg_long) == 0 || strcmp(argv[i], args[j].arg_short) == 0){
+            if(strcmp(argv[i], args[j].arg_long) == 0 ||
+               strcmp(argv[i], args[j].arg_short) == 0){
                 // Arg type 1
                 if(args[j].type == 1){
                     success = args[j].fun_ptr(NULL);
@@ -949,6 +962,11 @@ int main(int argc, char **argv){
             perror("error");
             return 1;
         }
+    }
+
+    // Check time format
+    if(g_time_format == NULL){
+        g_time_format = g_default_time_format;
     }
 
     if(check_log() != 0){
